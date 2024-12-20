@@ -1,3 +1,8 @@
+"""
+用户认证模块
+提供用户认证、会话管理和令牌处理的功能
+"""
+
 from loguru import logger
 import os
 import re
@@ -10,36 +15,51 @@ import extra_streamlit_components as stx
 
 class Validator:
     """
-    This class will check the validity of the entered username, name, and email for a 
-    newly registered user.
+    用户输入验证器
+    负责验证新注册用户的用户名、姓名和邮箱的有效性
     """
     def validate_username(self, username: str) -> bool:
         """
-        Checks the validity of the entered username.
+        验证用户名的有效性
+        规则：只允许字母、数字、下划线和连字符，长度1-20个字符
         """
         pattern = r"^[a-zA-Z0-9_-]{1,20}$"
         return bool(re.match(pattern, username))
 
     def validate_name(self, name: str) -> bool:
         """
-        Checks the validity of the entered name.
+        验证姓名的有效性
+        规则：长度在1-100个字符之间
         """
         return 1 < len(name) < 100
 
     def validate_email(self, email: str) -> bool:
         """
-        Checks the validity of the entered email.
+        验证邮箱的有效性
+        规则：包含@符号，长度在2-320个字符之间
         """
         return "@" in email and 2 < len(email) < 320
     
 class MyAuthenticate():
+    """
+    认证管理器类
+    处理用户认证、会话管理和令牌相关的所有功能
+    """
     def __init__(self, cookie_name: str, key:str, cookie_expiry_days: float=30.0):
+        """
+        初始化认证管理器
+        Args:
+            cookie_name: Cookie 名称
+            key: 加密密钥
+            cookie_expiry_days: Cookie 过期天数
+        """
         self.cookie_name = cookie_name
         self.key = key
         self.cookie_expiry_days = cookie_expiry_days
         self.cookie_manager = stx.CookieManager()
         self.validator = Validator()
 
+        # 初始化会话状态
         if 'name' not in st.session_state:
             st.session_state['name'] = None
         if 'authentication_status' not in st.session_state:
@@ -56,23 +76,18 @@ class MyAuthenticate():
         
     def get_token(self) -> str:
         """
-        Gets the token from the cookie.
-
-        Returns
-        -------
-        str
-            The token.
+        获取当前的认证令牌
+        Returns:
+            str: 认证令牌
         """
         return self.cookie_manager.get(self.cookie_name)
     
     def _token_encode(self) -> str:
         """
-        Encodes the contents of the reauthentication cookie.
-
-        Returns
-        -------
-        str
-            The JWT cookie for passwordless reauthentication.
+        编码认证令牌
+        将用户信息编码为JWT格式
+        Returns:
+            str: JWT编码后的令牌
         """
         return jwt.encode({'name':st.session_state['name'],
             'username':st.session_state['username'],
@@ -81,12 +96,10 @@ class MyAuthenticate():
    
     def _token_decode(self) -> str:
         """
-        Decodes the contents of the reauthentication cookie.
-
-        Returns
-        -------
-        str
-            The decoded JWT cookie for passwordless reauthentication.
+        解码认证令牌
+        解析JWT格式的令牌获取用户信息
+        Returns:
+            str: 解码后的用户信息，解码失败返回False
         """
         try:
             return jwt.decode(self.token, self.key, algorithms=['HS256'])
@@ -95,17 +108,14 @@ class MyAuthenticate():
 
     def _set_exp_date(self) -> str:
         """
-        Creates the reauthentication cookie's expiry date.
-
-        Returns
-        -------
-        str
-            The JWT cookie's expiry timestamp in Unix epoch.
+        设置认证令牌的过期时间
+        Returns:
+            str: 过期时间字符串
         """
         return (datetime.utcnow() + timedelta(days=self.cookie_expiry_days)).timestamp()
     
     def _check_pw(self) -> bool:
-        # check username and password 
+        # 检查用户名和密码
         username = self.username
         login_json = {
             "username": username,
@@ -146,23 +156,12 @@ class MyAuthenticate():
         
     def login(self, form_name: str, location: str='main') -> tuple:
         """
-        Creates a login widget.
-
-        Parameters
-        ----------
-        form_name: str
-            The rendered name of the login form.
-        location: str
-            The location of the login form i.e. main or sidebar.
-        Returns
-        -------
-        str
-            Name of the authenticated user.
-        bool
-            The status of authentication, None: no credentials entered, 
-            False: incorrect credentials, True: correct credentials.
-        str
-            Username of the authenticated user.
+        创建登录表单
+        Args:
+            form_name: 表单名称
+            location: 表单位置，main或sidebar
+        Returns:
+            tuple: 用户名、认证状态、用户名
         """
         if location not in ['main', 'sidebar']:
             raise ValueError("Location must be one of 'main' or 'sidebar'")
@@ -184,14 +183,11 @@ class MyAuthenticate():
 
     def logout(self, button_name: str, location: str='main', key: str=None):
         """
-        Creates a logout button.
-
-        Parameters
-        ----------
-        button_name: str
-            The rendered name of the logout button.
-        location: str
-            The location of the logout button i.e. main or sidebar.
+        创建注销按钮
+        Args:
+            button_name: 按钮名称
+            location: 按钮位置，main或sidebar
+            key: 按钮键值
         """
         if location not in ['main', 'sidebar']:
             raise ValueError("Location must be one of 'main' or 'sidebar'")
@@ -212,7 +208,7 @@ class MyAuthenticate():
 
     def _check_cookie(self):
         """
-        Checks the validity of the reauthentication cookie.
+        检查认证Cookie
         """
         self.token = self.cookie_manager.get(self.cookie_name)
         if self.token is not None:
@@ -226,7 +222,7 @@ class MyAuthenticate():
                             st.session_state['authentication_status'] = True
 
     def _register_credentials(self, username: str, name: str, password: str, email: str, invite_code: str = ""):
-        # register credentials to comfyflowapp
+        # 注册用户
         if not self.validator.validate_username(username):
             raise RegisterError('Username is not valid')
         if not self.validator.validate_name(name):
@@ -236,7 +232,7 @@ class MyAuthenticate():
         if not len(password) >= 8:
             raise RegisterError('Password is not valid, length > 8')
 
-        # register user
+        # 注册用户
         register_json = {
             "nickname": name,
             "username": username,
@@ -251,7 +247,6 @@ class MyAuthenticate():
             logger.info(f"register user success, {ret.json()}")
             st.success(f"Register user success, {username}")
 
-
     def register_user_info(self, form_name: str, location: str = 'main', data: dict={}) -> bool:
         if location not in ['main', 'sidebar']:
             raise ValueError("Location must be one of 'main' or 'sidebar'")
@@ -262,7 +257,7 @@ class MyAuthenticate():
 
         register_user_form.subheader(form_name)
         new_email = register_user_form.text_input('Email', value=data['email'], help='Please enter a valid email address')
-        new_username = register_user_form.text_input('Username', value=data['username'], help='Please enter a username, 0-9, a-z, A-Z, -, _, max length 20')
+        new_username = register_user_form.text_input('Username', value=data['username'], help='Please enter a username')
         new_name = register_user_form.text_input('Name', value=data['username'],help='Please enter your name')
         
         new_password = register_user_form.text_input('Password', type='password')
@@ -281,25 +276,14 @@ class MyAuthenticate():
             else:
                 raise RegisterError('Please enter an email, username, name, and password')
 
-
-
     def register_user(self, form_name: str, location: str = 'main') -> bool:
         """
-        Creates a register new user widget, add field: invite_code
-
-        Parameters
-        ----------
-        form_name: str
-            The rendered name of the register new user form.
-        location: str
-            The location of the register new user form i.e. main or sidebar.
-        preauthorization: bool
-            The preauthorization requirement, True: user must be preauthorized to register, 
-            False: any user can register.
-        Returns
-        -------
-        bool
-            The status of registering the new user, True: user registered successfully.
+        创建注册新用户表单
+        Args:
+            form_name: 表单名称
+            location: 表单位置，main或sidebar
+        Returns:
+            bool: 注册成功返回True
         """
         if location not in ['main', 'sidebar']:
             raise ValueError("Location must be one of 'main' or 'sidebar'")
@@ -328,6 +312,3 @@ class MyAuthenticate():
                     raise RegisterError('Username already taken')
             else:
                 raise RegisterError('Please enter an email, username, name, and password')
-
-
-    

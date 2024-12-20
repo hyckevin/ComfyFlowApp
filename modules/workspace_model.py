@@ -88,6 +88,7 @@ class WorkspaceModel:
     def create_app(self, app):
         with self.session as s:
             app['status'] = AppStatus.CREATED.value
+            app['username'] = 'local'  # 设置默认用户名
             logger.info(f"insert app: {app['name']} {app['description']}")
             
             sql = text(f'INSERT INTO {self.app_talbe_name} (username, name, description, image, template, app_conf, api_conf, workflow_conf, status, created_at) VALUES (:username, :name, :description, :image, :template, :app_conf, :api_conf, :workflow_conf, :status, datetime("now"));')
